@@ -4,6 +4,8 @@ using System.Configuration;
 using System.Reflection;
 using System.Text;
 using System.Web.Security;
+using Arvy;
+using Databossy;
 
 namespace AspNetMembershipPasswordReset {
     public static class ExceptionExt {
@@ -87,6 +89,41 @@ namespace AspNetMembershipPasswordReset {
 
                         String reset = provider.ResetPassword(username, null);
                         Boolean changed = provider.ChangePassword(username, reset, newPwd);
+
+                        using (var db = new Database(connString, true)) {
+                            String result = db.NQueryScalar<String>(@"
+                                BEGIN
+                                    SET NOCOUNT ON
+                                    BEGIN TRAN ResetPwd
+
+                                    BEGIN TRY
+                                        DECLARE
+                                            @@message VARCHAR(MAX)
+
+                                        UPDATE [dbo].[aspnet_Membership] SET
+                                        [IsApproved] = '1',
+                                        [IsLockedOut] = '0',
+                                        [LastLoginDate] = DATEADD(DAY, -2, GETDATE()),
+                                        [LastPasswordChangedDate] = DATEADD(DAY, -2, GETDATE())
+                                        WHERE UserId IN (SELECT [UserId]
+                                            FROM [dbo].[aspnet_Users]
+                                            WHERE UserName = @Username
+                                        )
+
+                                        COMMIT TRAN ResetPwd
+                                        SET @@message = 'S|Finish'
+                                    END TRY
+                                    BEGIN CATCH
+                                        ROLLBACK TRAN ResetPwd
+                                        SET @@message = 'E|' + CAST(ERROR_LINE() AS VARCHAR) + ': ' + ERROR_MESSAGE()
+                                    END CATCH
+                
+                                    SET NOCOUNT OFF
+                                    SELECT @@message [Message]
+                                END
+                            ", new { Username = username });
+                            result.AsActionResponseViewModel();
+                        }
 
                         Console.WriteLine(new StringBuilder()
                             .AppendLine("Done.")
