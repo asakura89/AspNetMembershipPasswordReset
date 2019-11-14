@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
 using System.Reflection;
@@ -68,60 +69,95 @@ namespace AspNetMembershipPasswordReset {
                     Console.Write("App Name: ");
                     String appName = Console.ReadLine();
 
+                    Console.Write("Mode: (R for Reset, C for Create) ");
+                    String mode = Console.ReadLine();
+
                     Console.Write("Username: ");
                     String username = Console.ReadLine();
 
-                    Console.Write("New Password: ");
-                    String newPwd = Console.ReadLine();
+                    Console.Write("Password: ");
+                    String pwd = Console.ReadLine();
 
-                    Boolean valid = !String.IsNullOrEmpty(connString) && !String.IsNullOrWhiteSpace(connString) &&
+                    Boolean create = mode.Equals("c", StringComparison.InvariantCultureIgnoreCase);
+                    String email = String.Empty;
+                    if (create) {
+                        Console.Write("Email: ");
+                        email = Console.ReadLine();
+                    }
+
+                    Boolean valid =
+                        !String.IsNullOrEmpty(connString) && !String.IsNullOrWhiteSpace(connString) &&
                         !String.IsNullOrEmpty(appName) && !String.IsNullOrWhiteSpace(appName) &&
                         !String.IsNullOrEmpty(username) && !String.IsNullOrWhiteSpace(username) &&
-                        !String.IsNullOrEmpty(newPwd) && !String.IsNullOrWhiteSpace(newPwd);
+                        !String.IsNullOrEmpty(pwd) && !String.IsNullOrWhiteSpace(pwd) &&
+                        (create ? !String.IsNullOrEmpty(email) && !String.IsNullOrWhiteSpace(email) : true);
 
                     if (valid) {
                         SqlMembershipProvider provider = InitializeAndGetAspMembershipConfig(connString, appName);
-                        MembershipUser user = provider.GetUser(username, false);
-                        if (user == null)
-                            throw new InvalidOperationException("User not found.");
 
-                        Console.WriteLine($"User '{username}' found.");
+                        if (!create) {
+                            MembershipUser user = provider.GetUser(username, false);
+                            if (user == null)
+                                throw new InvalidOperationException("User not found.");
 
-                        String reset = provider.ResetPassword(username, null);
-                        Boolean changed = provider.ChangePassword(username, reset, newPwd);
+                            Console.WriteLine($"User '{username}' found.");
+
+                            String reset = provider.ResetPassword(username, null);
+                            Boolean changed = provider.ChangePassword(username, reset, pwd);
+                        }
+                        else {
+                            MembershipUser user = provider.CreateUser(username, pwd, email, "Kobold", "Not a dragon", true, Guid.NewGuid(), out MembershipCreateStatus status);
+                            IDictionary<MembershipCreateStatus, String> statusMessage = new Dictionary<MembershipCreateStatus, String> {
+                                [MembershipCreateStatus.DuplicateUserName] = "Username already exists. Please enter a different user name.",
+                                [MembershipCreateStatus.DuplicateEmail] = "A username for that email address already exists. Please enter a different email address.",
+                                [MembershipCreateStatus.InvalidPassword] = "The password provided is invalid. Please enter a valid password value.",
+                                [MembershipCreateStatus.InvalidEmail] = "The email address provided is invalid. Please check the value and try again.",
+                                [MembershipCreateStatus.InvalidAnswer] = "The password retrieval answer provided is invalid. Please check the value and try again.",
+                                [MembershipCreateStatus.InvalidQuestion] = "The password retrieval question provided is invalid. Please check the value and try again.",
+                                [MembershipCreateStatus.InvalidUserName] = "The user name provided is invalid. Please check the value and try again.",
+                                [MembershipCreateStatus.ProviderError] = "The authentication provider returned an error. Please verify your entry and try again. If the problem persists, please contact your system administrator.",
+                                [MembershipCreateStatus.UserRejected] = "The user creation request has been canceled. Please verify your entry and try again. If the problem persists, please contact your system administrator.",
+                                [MembershipCreateStatus.Success] = "the user creation done in success."
+                            };
+
+                            if (!statusMessage.ContainsKey(status))
+                                throw new InvalidOperationException("An unknown error occurred. Please verify your entry and try again. If the problem persists, please contact your system administrator.");
+
+                            Console.WriteLine(statusMessage[status]);
+                        }
 
                         using (var db = new Database(connString, true)) {
                             String result = db.NQueryScalar<String>(@"
-                                BEGIN
-                                    SET NOCOUNT ON
-                                    BEGIN TRAN ResetPwd
+                                    BEGIN
+                                        SET NOCOUNT ON
+                                        BEGIN TRAN ResetPwd
 
-                                    BEGIN TRY
-                                        DECLARE
-                                            @@message VARCHAR(MAX)
+                                        BEGIN TRY
+                                            DECLARE
+                                                @@message VARCHAR(MAX)
 
-                                        UPDATE [dbo].[aspnet_Membership] SET
-                                        [IsApproved] = '1',
-                                        [IsLockedOut] = '0',
-                                        [LastLoginDate] = DATEADD(DAY, -2, GETDATE()),
-                                        [LastPasswordChangedDate] = DATEADD(DAY, -2, GETDATE())
-                                        WHERE UserId IN (SELECT [UserId]
-                                            FROM [dbo].[aspnet_Users]
-                                            WHERE UserName = @Username
-                                        )
+                                            UPDATE [dbo].[aspnet_Membership] SET
+                                            [IsApproved] = '1',
+                                            [IsLockedOut] = '0',
+                                            [LastLoginDate] = DATEADD(DAY, -2, GETDATE()),
+                                            [LastPasswordChangedDate] = DATEADD(DAY, -2, GETDATE())
+                                            WHERE UserId IN (SELECT [UserId]
+                                                FROM [dbo].[aspnet_Users]
+                                                WHERE UserName = @Username
+                                            )
 
-                                        COMMIT TRAN ResetPwd
-                                        SET @@message = 'S|Finish'
-                                    END TRY
-                                    BEGIN CATCH
-                                        ROLLBACK TRAN ResetPwd
-                                        SET @@message = 'E|' + CAST(ERROR_LINE() AS VARCHAR) + ': ' + ERROR_MESSAGE()
-                                    END CATCH
+                                            COMMIT TRAN ResetPwd
+                                            SET @@message = 'S|Finish'
+                                        END TRY
+                                        BEGIN CATCH
+                                            ROLLBACK TRAN ResetPwd
+                                            SET @@message = 'E|' + CAST(ERROR_LINE() AS VARCHAR) + ': ' + ERROR_MESSAGE()
+                                        END CATCH
                 
-                                    SET NOCOUNT OFF
-                                    SELECT @@message [Message]
-                                END
-                            ", new { Username = username });
+                                        SET NOCOUNT OFF
+                                        SELECT @@message [Message]
+                                    END
+                                ", new { Username = username });
                             result.AsActionResponseViewModel();
                         }
 
