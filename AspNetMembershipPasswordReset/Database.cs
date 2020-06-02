@@ -155,10 +155,9 @@ namespace Databossy {
         public DataTable QueryDataTable(String queryString) {
             Open();
             var dt = new DataTable();
-            using (DbCommand cmd = BuildSqlCommand(queryString)) {
+            using (DbCommand cmd = BuildSqlCommand(queryString))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(dt);
-            }
 
             return dt;
         }
@@ -166,10 +165,9 @@ namespace Databossy {
         public DataTable QueryDataTable(String queryString, params Object[] queryParams) {
             Open();
             var dt = new DataTable();
-            using (DbCommand cmd = BuildSqlCommand(queryString, queryParams)) {
+            using (DbCommand cmd = BuildSqlCommand(queryString, queryParams))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(dt);
-            }
 
             return dt;
         }
@@ -177,10 +175,9 @@ namespace Databossy {
         public DataTable NQueryDataTable(String queryString, Object paramObj) {
             Open();
             var dt = new DataTable();
-            using (DbCommand cmd = NBuildSqlCommand(queryString, paramObj)) {
+            using (DbCommand cmd = NBuildSqlCommand(queryString, paramObj))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(dt);
-            }
 
             return dt;
         }
@@ -188,10 +185,9 @@ namespace Databossy {
         public DataSet QueryDataSet(String queryString) {
             Open();
             var ds = new DataSet();
-            using (DbCommand cmd = BuildSqlCommand(queryString)) {
+            using (DbCommand cmd = BuildSqlCommand(queryString))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(ds);
-            }
 
             return ds;
         }
@@ -199,10 +195,9 @@ namespace Databossy {
         public DataSet QueryDataSet(String queryString, params Object[] queryParams) {
             Open();
             var ds = new DataSet();
-            using (DbCommand cmd = BuildSqlCommand(queryString, queryParams)) {
+            using (DbCommand cmd = BuildSqlCommand(queryString, queryParams))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(ds);
-            }
 
             return ds;
         }
@@ -210,10 +205,9 @@ namespace Databossy {
         public DataSet NQueryDataSet(String queryString, Object paramObj) {
             Open();
             var ds = new DataSet();
-            using (DbCommand cmd = NBuildSqlCommand(queryString, paramObj)) {
+            using (DbCommand cmd = NBuildSqlCommand(queryString, paramObj))
                 using (DbDataAdapter dataAdapter = BuildSelectDataAdapter(cmd))
                     dataAdapter.Fill(ds);
-            }
 
             return ds;
         }
@@ -224,9 +218,9 @@ namespace Databossy {
             Open();
             var result = new List<T>();
             using (DbCommand cmd = BuildSqlCommand(queryString))
-            using (DbDataReader reader = cmd.ExecuteReader())
-                while (reader.Read())
-                    result.Add(ToTResult<T>(reader));
+                using (DbDataReader reader = cmd.ExecuteReader())
+                    while (reader.Read())
+                        result.Add(ToTResult<T>(reader));
 
             return result;
         }
@@ -235,9 +229,9 @@ namespace Databossy {
             Open();
             var result = new List<T>();
             using (DbCommand cmd = BuildSqlCommand(queryString, queryParams))
-            using (DbDataReader reader = cmd.ExecuteReader())
-                while (reader.Read())
-                    result.Add(ToTResult<T>(reader));
+                using (DbDataReader reader = cmd.ExecuteReader())
+                    while (reader.Read())
+                        result.Add(ToTResult<T>(reader));
 
             return result;
         }
@@ -246,9 +240,9 @@ namespace Databossy {
             Open();
             var result = new List<T>();
             using (DbCommand cmd = NBuildSqlCommand(queryString, paramObj))
-            using (DbDataReader reader = cmd.ExecuteReader())
-                while (reader.Read())
-                    result.Add(ToTResult<T>(reader));
+                using (DbDataReader reader = cmd.ExecuteReader())
+                    while (reader.Read())
+                        result.Add(ToTResult<T>(reader));
 
             return result;
         }

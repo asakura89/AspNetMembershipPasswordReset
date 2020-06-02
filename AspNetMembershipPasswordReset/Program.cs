@@ -2,29 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Web.Security;
 using Arvy;
 using Databossy;
+using Exy;
 
 namespace AspNetMembershipPasswordReset {
-    public static class ExceptionExt {
-        public static String GetExceptionMessage(this Exception ex) {
-            var errorList = new StringBuilder();
-            if (ex.InnerException != null)
-                errorList.AppendLine(GetExceptionMessage(ex.InnerException));
-
-            return errorList
-                .AppendLine(ex.Message)
-                .AppendLine(ex.StackTrace)
-                .ToString();
-        }
-    }
-
     class Program {
         static void Main(String[] args) {
             try {
+                Console.Title = "AspNet-Membership password reset tools";
+
                 Func<String, String, SqlMembershipProvider> InitializeAndGetAspMembershipConfig = (connectionstring, appname) => {
                     typeof(ConfigurationElementCollection)
                         .GetField("bReadOnly", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -56,13 +47,14 @@ namespace AspNetMembershipPasswordReset {
                     .ToString());
 
                 Console.WriteLine(new StringBuilder()
-                    .AppendLine("Enter to continue, C or Q to exit.")
+                    .AppendLine("Enter to continue. C, E or Q to exit.")
                     .AppendLine()
                     .ToString());
+
                 String input = Console.ReadLine();
 
-                while (!(input == "c" || input == "C" || input == "q" || input == "Q")) {
-
+                String[] quitCommands = new[] { "c", "e", "q" };
+                while (!quitCommands.Contains(input.ToLowerInvariant())) {
                     Console.Write("Connection String: ");
                     String connString = Console.ReadLine();
 
@@ -80,9 +72,29 @@ namespace AspNetMembershipPasswordReset {
 
                     Boolean create = mode.Equals("c", StringComparison.InvariantCultureIgnoreCase);
                     String email = String.Empty;
+                    String role = String.Empty;
                     if (create) {
                         Console.Write("Email: ");
                         email = Console.ReadLine();
+
+                        Console.WriteLine("Roles:");
+                        using (var db = new Database(connString, true)) {
+                            IList<SimpleResult> results = db.Query<SimpleResult>(@"
+                                    BEGIN
+                                        SET NOCOUNT ON
+
+                                        SELECT RoleName Result
+                                        FROM dbo.aspnet_Roles
+
+                                        SET NOCOUNT OFF
+                                    END").ToList();
+
+                            foreach (SimpleResult result in results)
+                                Console.WriteLine(result.Result);
+                        }
+
+                        Console.Write("Role: ");
+                        role = Console.ReadLine();
                     }
 
                     Boolean valid =
@@ -124,40 +136,90 @@ namespace AspNetMembershipPasswordReset {
                                 throw new InvalidOperationException("An unknown error occurred. Please verify your entry and try again. If the problem persists, please contact your system administrator.");
 
                             Console.WriteLine(statusMessage[status]);
-                        }
 
-                        using (var db = new Database(connString, true)) {
-                            String result = db.NQueryScalar<String>(@"
+                            using (var db = new Database(connString, true)) {
+                                Int32 result = db.NQueryScalar<Int32>(@"
                                     BEGIN
                                         SET NOCOUNT ON
-                                        BEGIN TRAN ResetPwd
+
+                                        SELECT COUNT(0) FROM dbo.aspnet_Roles
+                                        WHERE LoweredRoleName = @RoleName
+                
+                                        SET NOCOUNT OFF
+                                    END", new { RoleName = role.ToLowerInvariant() });
+
+                                if (result < 1)
+                                    throw new InvalidOperationException($"Role {role} isn't found anywhere.");
+                            }
+
+                            using (var db = new Database(connString, true)) {
+                                String result = db.NQueryScalar<String>(@"
+                                    BEGIN
+                                        SET NOCOUNT ON
+                                        BEGIN TRAN AssignRole
 
                                         BEGIN TRY
                                             DECLARE
                                                 @@message VARCHAR(MAX)
 
-                                            UPDATE [dbo].[aspnet_Membership] SET
-                                            [IsApproved] = '1',
-                                            [IsLockedOut] = '0',
-                                            [LastLoginDate] = DATEADD(DAY, -2, GETDATE()),
-                                            [LastPasswordChangedDate] = DATEADD(DAY, -2, GETDATE())
-                                            WHERE UserId IN (SELECT [UserId]
-                                                FROM [dbo].[aspnet_Users]
-                                                WHERE UserName = @Username
-                                            )
+                                            DECLARE @@roleId UNIQUEIDENTIFIER
+                                            SELECT TOP 1 @@roleId = RoleId FROM dbo.aspnet_Roles WHERE LoweredRoleName = @RoleName
+        
+                                            INSERT INTO dbo.aspnet_UsersInRoles
+                                            (RoleId, UserId)
+                                            VALUES (@@roleId, @UserId)
 
-                                            COMMIT TRAN ResetPwd
+                                            COMMIT TRAN AssignRole
                                             SET @@message = 'S|Finish'
                                         END TRY
                                         BEGIN CATCH
-                                            ROLLBACK TRAN ResetPwd
+                                            ROLLBACK TRAN AssignRole
                                             SET @@message = 'E|' + CAST(ERROR_LINE() AS VARCHAR) + ': ' + ERROR_MESSAGE()
                                         END CATCH
                 
                                         SET NOCOUNT OFF
                                         SELECT @@message [Message]
-                                    END
-                                ", new { Username = username });
+                                    END",
+                                    new {
+                                        UserId = user.ProviderUserKey.ToString(),
+                                        RoleName = role.ToLowerInvariant()
+                                    });
+
+                                result.AsActionResponseViewModel();
+                            }
+                        }
+
+                        using (var db = new Database(connString, true)) {
+                            String result = db.NQueryScalar<String>(@"
+                                BEGIN
+                                    SET NOCOUNT ON
+                                    BEGIN TRAN ResetPwd
+
+                                    BEGIN TRY
+                                        DECLARE
+                                            @@message VARCHAR(MAX)
+
+                                        UPDATE dbo.aspnet_Membership SET
+                                        IsApproved = '1',
+                                        IsLockedOut = '0',
+                                        LastLoginDate = DATEADD(DAY, -2, GETDATE()),
+                                        LastPasswordChangedDate = DATEADD(DAY, -2, GETDATE())
+                                        WHERE UserId IN (SELECT UserId
+                                            FROM dbo.aspnet_Users
+                                            WHERE UserName = @Username
+                                        )
+
+                                        COMMIT TRAN ResetPwd
+                                        SET @@message = 'S|Finish'
+                                    END TRY
+                                    BEGIN CATCH
+                                        ROLLBACK TRAN ResetPwd
+                                        SET @@message = 'E|' + CAST(ERROR_LINE() AS VARCHAR) + ': ' + ERROR_MESSAGE()
+                                    END CATCH
+                
+                                    SET NOCOUNT OFF
+                                    SELECT @@message [Message]
+                                END", new { Username = username });
                             result.AsActionResponseViewModel();
                         }
 
@@ -174,7 +236,7 @@ namespace AspNetMembershipPasswordReset {
                     }
 
                     Console.WriteLine(new StringBuilder()
-                        .AppendLine("Enter to continue, C or Q to exit.")
+                        .AppendLine("Enter to continue. C, E or Q to exit.")
                         .AppendLine()
                         .ToString());
                     input = Console.ReadLine();
