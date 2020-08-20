@@ -16,7 +16,7 @@ namespace AspNetMembershipPasswordReset {
             try {
                 Console.Title = "AspNet-Membership password reset tools";
 
-                Func<String, String, SqlMembershipProvider> InitializeAndGetAspMembershipConfig = (connectionstring, appname) => {
+                Func<String, String, String, SqlMembershipProvider> InitializeAndGetAspMembershipConfig = (connectionstring, appname, hashAlgo) => {
                     typeof(ConfigurationElementCollection)
                         .GetField("bReadOnly", BindingFlags.Instance | BindingFlags.NonPublic)
                         .SetValue(ConfigurationManager.ConnectionStrings, false);
@@ -37,6 +37,10 @@ namespace AspNetMembershipPasswordReset {
                         ["passwordStrengthRegularExpression"] = ".+",
                         ["passwordFormat"] = "Hashed"
                     });
+
+                    typeof(SqlMembershipProvider)
+                        .GetField("s_HashAlgorithm", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .SetValue(membershipProv, hashAlgo);
 
                     return membershipProv;
                 };
@@ -60,6 +64,9 @@ namespace AspNetMembershipPasswordReset {
 
                     Console.Write("App Name: ");
                     String appName = Console.ReadLine();
+
+                    Console.Write("Hash Algo: (MD5, SHA1, SHA512) ");
+                    String hashAlgo = Console.ReadLine();
 
                     Console.Write("Mode: (R for Reset, C for Create) ");
                     String mode = Console.ReadLine();
@@ -100,12 +107,13 @@ namespace AspNetMembershipPasswordReset {
                     Boolean valid =
                         !String.IsNullOrEmpty(connString) && !String.IsNullOrWhiteSpace(connString) &&
                         !String.IsNullOrEmpty(appName) && !String.IsNullOrWhiteSpace(appName) &&
+                        !String.IsNullOrEmpty(hashAlgo) && !String.IsNullOrWhiteSpace(hashAlgo) &&
                         !String.IsNullOrEmpty(username) && !String.IsNullOrWhiteSpace(username) &&
                         !String.IsNullOrEmpty(pwd) && !String.IsNullOrWhiteSpace(pwd) &&
                         (create ? !String.IsNullOrEmpty(email) && !String.IsNullOrWhiteSpace(email) : true);
 
                     if (valid) {
-                        SqlMembershipProvider provider = InitializeAndGetAspMembershipConfig(connString, appName);
+                        SqlMembershipProvider provider = InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
 
                         if (!create) {
                             MembershipUser user = provider.GetUser(username, false);
@@ -230,15 +238,16 @@ namespace AspNetMembershipPasswordReset {
                     }
                     else {
                         Console.WriteLine(new StringBuilder()
-                        .AppendLine("Data not valid.")
-                        .AppendLine()
-                        .ToString());
+                            .AppendLine("Data not valid.")
+                            .AppendLine()
+                            .ToString());
                     }
 
                     Console.WriteLine(new StringBuilder()
                         .AppendLine("Enter to continue. C, E or Q to exit.")
                         .AppendLine()
                         .ToString());
+
                     input = Console.ReadLine();
                 }
 
