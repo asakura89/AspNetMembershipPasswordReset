@@ -10,6 +10,6 @@ namespace AspNetMembershipPasswordReset.Validator {
         public String InvalidMessage { get; }
         public Boolean Validate(String value) =>
             !String.IsNullOrEmpty(value.Trim(' ')) &&
-            new[] { "r", "c", "d" }.Contains(value.Trim(' ').ToLowerInvariant());
+            new[] { "r", "c", "d", "v" }.Contains(value.Trim(' ').ToLowerInvariant());
     }
 }

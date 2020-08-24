@@ -11,8 +11,7 @@ using Exy;
 namespace AspNetMembershipPasswordReset {
     public class ConsoleInterface {
         public void Run() {
-            try
-            {
+            try {
                 String response = Initialize();
                 Boolean proceed = HandleResponse(response);
 
@@ -50,17 +49,18 @@ namespace AspNetMembershipPasswordReset {
             return Console.ReadLine();
         }
 
-        readonly IDictionary<String, Action<String, String, String, String, String>> modeAction = new Dictionary<String, Action<String, String, String, String, String>> {
+        readonly IDictionary<String, Action<String, String, String, String>> modeAction = new Dictionary<String, Action<String, String, String, String>> {
             ["r"] = ResetAction,
             ["c"] = CreateAction,
-            ["d"] = DeleteAction
+            ["d"] = DeleteAction,
+            ["v"] = ViewAction
         };
 
         public void ShowMenu() {
             String mode = ExtConsole
                 .Create()
-                .LabelWith("Mode: (R for Reset, C for Create, D for Delete) ")
-                .GetString(new ModeValidator("Choose one: R, C, D"));
+                .LabelWith("Mode: (R for Reset, C for Create, D for Delete, V for View) ")
+                .GetString(new ModeValidator("Choose one: R, C, D, V"));
 
             String connString = ExtConsole
                 .Create()
@@ -82,13 +82,8 @@ namespace AspNetMembershipPasswordReset {
                 .LabelWith("Username: ")
                 .GetString(new SimpleStringValidator("Input Username you want to reset"));
 
-            String pwd = ExtConsole
-                .Create()
-                .LabelWith("Password: ")
-                .GetString(new SimpleStringValidator("Input new Password"));
-
-            Action<String, String, String, String, String> action = modeAction[mode.ToLowerInvariant()];
-            action(connString, appName, hashAlgo, username, pwd);
+            Action<String, String, String, String> action = modeAction[mode.ToLowerInvariant()];
+            action(connString, appName, hashAlgo, username);
 
             Console.WriteLine(new StringBuilder()
                 .AppendLine("Done.")
@@ -96,7 +91,12 @@ namespace AspNetMembershipPasswordReset {
                 .ToString());
         }
 
-        static void ResetAction(String connString, String appName, String hashAlgo, String username, String pwd) {
+        static void ResetAction(String connString, String appName, String hashAlgo, String username) {
+            String pwd = ExtConsole
+                .Create()
+                .LabelWith("Password: ")
+                .GetString(new SimpleStringValidator("Input new Password"));
+
             SqlMembershipProvider provider = MembershipService.InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
             MembershipUser user = provider.GetUser(username, false);
             if (user == null)
@@ -109,7 +109,12 @@ namespace AspNetMembershipPasswordReset {
             UpdateUserLoginProperty(connString, username);
         }
 
-        static void CreateAction(String connString, String appName, String hashAlgo, String username, String pwd) {
+        static void CreateAction(String connString, String appName, String hashAlgo, String username) {
+            String pwd = ExtConsole
+                .Create()
+                .LabelWith("Password: ")
+                .GetString(new SimpleStringValidator("Input new Password"));
+
             String email = ExtConsole
                 .Create()
                 .LabelWith("Email: ")
@@ -136,7 +141,7 @@ namespace AspNetMembershipPasswordReset {
                 .GetString(new SimpleStringValidator("Choose one from above"));
 
             SqlMembershipProvider provider = MembershipService.InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
-            MembershipUser user = provider.CreateUser(username, pwd, email, "Kobold", "Not a dragon", true, Guid.NewGuid(), out MembershipCreateStatus status);
+            MembershipUser user = provider.CreateUser(username, pwd, email, "Your account might have technical difficulties. Please ask your Administrator.", "TECHNICAL DIFFICULTIES BECAUSE OF RESET", true, Guid.NewGuid(), out MembershipCreateStatus status);
             IDictionary<MembershipCreateStatus, String> statusMessage = new Dictionary<MembershipCreateStatus, String> {
                 [MembershipCreateStatus.DuplicateUserName] = "Username already exists. Please enter a different user name.",
                 [MembershipCreateStatus.DuplicateEmail] = "A username for that email address already exists. Please enter a different email address.",
@@ -210,8 +215,7 @@ namespace AspNetMembershipPasswordReset {
         }
 
         static void UpdateUserLoginProperty(String connString, String username) {
-            using (var db = new Database(connString, true))
-            {
+            using (var db = new Database(connString, true)) {
                 String result = db.NQueryScalar<String>(@"
                     BEGIN
                         SET NOCOUNT ON
@@ -246,9 +250,133 @@ namespace AspNetMembershipPasswordReset {
             }
         }
 
-        static void DeleteAction(String connString, String appName, String hashAlgo, String username, String pwd) {
+        static void DeleteAction(String connString, String appName, String hashAlgo, String username) {
             SqlMembershipProvider provider = MembershipService.InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
             provider.DeleteUser(username, true);
+        }
+
+        static void ViewAction(String connString, String appName, String hashAlgo, String username) {
+            using (var db = new Database(connString, true)) {
+                IEnumerable<UserInfo> result = db.NQuery<UserInfo>(@"
+                    SET NOCOUNT ON
+                    ;
+                    WITH AspApp AS (
+                        SELECT
+                        ApplicationId [Id],
+                        ApplicationName [Name],
+                        [Description] [Desc]
+                        FROM aspnet_Applications
+                    ),
+                    AspUser AS (
+                        SELECT
+                        ApplicationId AppId,
+                        UserId [Id],
+                        UserName Username,
+                        LastActivityDate LastActivity
+                        FROM aspnet_Users
+                    ),
+                    AspMembership AS (
+                        SELECT
+                        ApplicationId AppId,
+                        UserId,
+                        Email,
+                        IsApproved Approved,
+                        IsLockedOut LockedOut,
+                        LastLoginDate LastLogin,
+                        LastPasswordChangedDate LastPwdChanged,
+                        LastLockoutDate LastLockedOut,
+                        FailedPasswordAttemptCount FailedLoginCount,
+                        FailedPasswordAnswerAttemptCount FailedPwdAnswerCount
+                        FROM aspnet_Membership mbr
+                    ),
+                    AspRole AS (
+                        SELECT
+                        r.ApplicationId AppId,
+                        usr.UserId,
+                        us.Username,
+                        r.RoleName [Role],
+                        r.[Description] [Desc]
+                        FROM aspnet_UsersInRoles usr
+                        LEFT JOIN AspUser us
+                        ON usr.UserId = us.[Id]
+                        LEFT JOIN aspnet_Roles r
+                        ON usr.RoleId = r.RoleId
+                        AND r.ApplicationId = us.AppId
+                    ),
+                    AspProfile AS (
+                        SELECT
+                        us.[Id] UserId,
+                        prf.PropertyNames,
+                        prf.PropertyValuesString,
+                        prf.PropertyValuesBinary
+                        FROM aspnet_Profile prf
+                        LEFT JOIN AspUser us ON prf.UserId = us.[Id]
+                    ),
+                    AspProfileNV AS (
+                        SELECT
+                        UserId,
+                        ':' + CAST(PropertyNames AS VARCHAR(8000)) Names,
+                        PropertyValuesString [Values]
+                        FROM AspProfile
+                    )
+                    SELECT
+                    app.[Name] App,
+                    app.[Desc] AppDesc,
+                    us.Username,
+                    CONVERT(VARCHAR, us.LastActivity, 104) + ' ' + CONVERT(VARCHAR, us.LastActivity, 108) LastActivity,
+                    mbr.Email,
+                    CASE mbr.Approved
+                        WHEN 0 THEN 'False'
+                        WHEN 1 THEN 'True'
+                    END Approved,
+                    CASE mbr.LockedOut
+                        WHEN 0 THEN 'False'
+                        WHEN 1 THEN 'True'
+                    END LockedOut,
+                    CONVERT(VARCHAR, mbr.LastLogin, 104) + ' ' + CONVERT(VARCHAR, mbr.LastLogin, 108) LastLogin,
+                    CONVERT(VARCHAR, mbr.LastPwdChanged, 104) + ' ' + CONVERT(VARCHAR, mbr.LastPwdChanged, 108) LastPwdChanged,
+                    CONVERT(VARCHAR, mbr.LastLockedOut, 104) + ' ' + CONVERT(VARCHAR, mbr.LastLockedOut, 108) LastLockedOut,
+                    mbr.FailedLoginCount,
+                    mbr.FailedPwdAnswerCount,
+                    r.[Role],
+                    r.[Desc] RoleDesc,
+                    prf.Names ProfileNames,
+                    prf.[Values] ProfileValues
+                    FROM AspApp app
+                    LEFT JOIN AspUser us
+                    ON app.[Id] = us.AppId
+                    LEFT JOIN AspMembership mbr
+                    ON app.[Id] = mbr.AppId
+                    AND us.[Id] = mbr.UserId
+                    LEFT JOIN AspRole r
+                    ON us.AppId = r.AppId
+                    AND us.[Id] = r.UserId
+                    LEFT JOIN AspProfileNV prf
+                    ON prf.UserId = us.[Id]
+                    WHERE app.[Name] = @App
+                    AND us.Username = @Username
+
+                    SET NOCOUNT OFF", new { App = appName, Username = username });
+
+                foreach (UserInfo user in result) {
+                    Console.WriteLine($"  - App: {user.App}");
+                    Console.WriteLine($"  - AppDesc: {user.AppDesc}");
+                    Console.WriteLine($"  - Username: {user.Username}");
+                    Console.WriteLine($"  - LastActivity: {user.LastActivity}");
+                    Console.WriteLine($"  - Email: {user.Email}");
+                    Console.WriteLine($"  - Approved: {user.Approved}");
+                    Console.WriteLine($"  - LockedOut: {user.LockedOut}");
+                    Console.WriteLine($"  - LastLogin: {user.LastLogin}");
+                    Console.WriteLine($"  - LastPwdChanged: {user.LastPwdChanged}");
+                    Console.WriteLine($"  - LastLockedOut: {user.LastLockedOut}");
+                    Console.WriteLine($"  - FailedLoginCount: {user.FailedLoginCount}");
+                    Console.WriteLine($"  - FailedPwdAnswerCount: {user.FailedPwdAnswerCount}");
+                    Console.WriteLine($"  - Role: {user.Role}");
+                    Console.WriteLine($"  - RoleDesc: {user.RoleDesc}");
+                    Console.WriteLine($"  - ProfileNames: {user.ProfileNames}");
+                    Console.WriteLine($"  - ProfileValues: {user.ProfileValues}");
+                }
+            }
         }
 
         public Boolean HandleResponse(String response) {
