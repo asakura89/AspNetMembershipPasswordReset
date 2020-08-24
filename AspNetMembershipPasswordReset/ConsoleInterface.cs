@@ -49,24 +49,35 @@ namespace AspNetMembershipPasswordReset {
             return Console.ReadLine();
         }
 
-        readonly IDictionary<String, Action<String, String, String, String>> modeAction = new Dictionary<String, Action<String, String, String, String>> {
+        readonly IDictionary<String, Action<String>> modeAction = new Dictionary<String, Action<String>> {
             ["r"] = ResetAction,
             ["c"] = CreateAction,
             ["d"] = DeleteAction,
-            ["v"] = ViewAction
+            ["v"] = ViewAction,
+            ["l"] = ListAction
         };
 
         public void ShowMenu() {
             String mode = ExtConsole
                 .Create()
-                .LabelWith("Mode: (R for Reset, C for Create, D for Delete, V for View) ")
-                .GetString(new ModeValidator("Choose one: R, C, D, V"));
+                .LabelWith("Mode: ([R]eset, [C]reate, [D]elete, [V]iew, [L]ist) ")
+                .GetString(new ModeValidator("Choose one: R, C, D, V, L"));
 
             String connString = ExtConsole
                 .Create()
                 .LabelWith("Connection String: ")
                 .GetString(new SimpleStringValidator("Same as the one from your app.config / web.config"));
 
+            Action<String> action = modeAction[mode.ToLowerInvariant()];
+            action(connString);
+
+            Console.WriteLine(new StringBuilder()
+                .AppendLine("Done.")
+                .AppendLine()
+                .ToString());
+        }
+
+        static void ResetAction(String connString) {
             String appName = ExtConsole
                 .Create()
                 .LabelWith("App Name: ")
@@ -82,16 +93,6 @@ namespace AspNetMembershipPasswordReset {
                 .LabelWith("Username: ")
                 .GetString(new SimpleStringValidator("Input Username you want to reset"));
 
-            Action<String, String, String, String> action = modeAction[mode.ToLowerInvariant()];
-            action(connString, appName, hashAlgo, username);
-
-            Console.WriteLine(new StringBuilder()
-                .AppendLine("Done.")
-                .AppendLine()
-                .ToString());
-        }
-
-        static void ResetAction(String connString, String appName, String hashAlgo, String username) {
             String pwd = ExtConsole
                 .Create()
                 .LabelWith("Password: ")
@@ -109,7 +110,22 @@ namespace AspNetMembershipPasswordReset {
             UpdateUserLoginProperty(connString, username);
         }
 
-        static void CreateAction(String connString, String appName, String hashAlgo, String username) {
+        static void CreateAction(String connString) {
+            String appName = ExtConsole
+                .Create()
+                .LabelWith("App Name: ")
+                .GetString(new SimpleStringValidator("Same as the one from your app.config / web.config"));
+
+            String hashAlgo = ExtConsole
+                .Create()
+                .LabelWith("Hash Algo: (MD5, SHA1, SHA512) ")
+                .GetString(new SimpleStringValidator("Choose one: MD5, SHA1, SHA512"));
+
+            String username = ExtConsole
+                .Create()
+                .LabelWith("Username: ")
+                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+
             String pwd = ExtConsole
                 .Create()
                 .LabelWith("Password: ")
@@ -250,12 +266,37 @@ namespace AspNetMembershipPasswordReset {
             }
         }
 
-        static void DeleteAction(String connString, String appName, String hashAlgo, String username) {
+        static void DeleteAction(String connString) {
+            String appName = ExtConsole
+                .Create()
+                .LabelWith("App Name: ")
+                .GetString(new SimpleStringValidator("Same as the one from your app.config / web.config"));
+
+            String hashAlgo = ExtConsole
+                .Create()
+                .LabelWith("Hash Algo: (MD5, SHA1, SHA512) ")
+                .GetString(new SimpleStringValidator("Choose one: MD5, SHA1, SHA512"));
+
+            String username = ExtConsole
+                .Create()
+                .LabelWith("Username: ")
+                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+
             SqlMembershipProvider provider = MembershipService.InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
             provider.DeleteUser(username, true);
         }
 
-        static void ViewAction(String connString, String appName, String hashAlgo, String username) {
+        static void ViewAction(String connString) {
+            String appName = ExtConsole
+                .Create()
+                .LabelWith("App Name: ")
+                .GetString(new SimpleStringValidator("Same as the one from your app.config / web.config"));
+
+            String username = ExtConsole
+                .Create()
+                .LabelWith("Username: ")
+                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+
             using (var db = new Database(connString, true)) {
                 IEnumerable<UserInfo> result = db.NQuery<UserInfo>(@"
                     SET NOCOUNT ON
@@ -376,6 +417,40 @@ namespace AspNetMembershipPasswordReset {
                     Console.WriteLine($"  - ProfileNames: {user.ProfileNames}");
                     Console.WriteLine($"  - ProfileValues: {user.ProfileValues}");
                 }
+            }
+        }
+
+        static void ListAction(String connString) {
+            using (var db = new Database(connString, true)) {
+                IEnumerable<SimpleUserInfo> result = db.Query<SimpleUserInfo>(@"
+                    SET NOCOUNT ON
+                    ;
+                    WITH AspApp AS (
+                        SELECT
+                        ApplicationId [Id],
+                        ApplicationName [Name],
+                        [Description] [Desc]
+                        FROM aspnet_Applications
+                    ),
+                    AspUser AS (
+                        SELECT
+                        ApplicationId AppId,
+                        UserId [Id],
+                        UserName Username,
+                        LastActivityDate LastActivity
+                        FROM aspnet_Users
+                    )
+                    SELECT
+                    app.[Name] App,
+                    us.Username
+                    FROM AspApp app
+                    LEFT JOIN AspUser us
+                    ON app.[Id] = us.AppId
+
+                    SET NOCOUNT OFF");
+
+                foreach (SimpleUserInfo user in result)
+                    Console.WriteLine($"  - App: {user.App}, Username: {user.Username}");
             }
         }
 
