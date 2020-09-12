@@ -1,6 +1,6 @@
 using System;
 
-namespace AspNetMembershipPasswordReset.Validator {
+namespace ConsoleApp.Validator {
     public interface IInputValidator {
         String InvalidMessage { get; }
         Boolean Validate(String value);

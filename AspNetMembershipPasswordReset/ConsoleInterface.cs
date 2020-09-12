@@ -5,11 +5,15 @@ using System.Text;
 using System.Web.Security;
 using Arvy;
 using AspNetMembershipPasswordReset.Validator;
+using ConsoleApp;
+using ConsoleApp.Validator;
 using Databossy;
 using Exy;
 
 namespace AspNetMembershipPasswordReset {
     public class ConsoleInterface {
+        const String Title = "AspNet-Membership password reset tool";
+
         public void Run() {
             try {
                 String response = Initialize();
@@ -19,8 +23,8 @@ namespace AspNetMembershipPasswordReset {
                     ShowMenu();
 
                     Console.WriteLine(new StringBuilder()
-                        .AppendLine("Enter to continue. C, E or Q to exit.")
                         .AppendLine()
+                        .Append($"{Title}. Enter to continue. C, E or Q to exit.")
                         .ToString());
 
                     proceed = HandleResponse(Console.ReadLine());
@@ -34,16 +38,11 @@ namespace AspNetMembershipPasswordReset {
         }
 
         public String Initialize() {
-            Console.Title = "AspNet-Membership password reset tools";
+            Console.Title = Title;
 
             Console.WriteLine(new StringBuilder()
                 .AppendLine()
-                .AppendLine("AspNet-Membership password reset tools")
-                .ToString());
-
-            Console.WriteLine(new StringBuilder()
-                .AppendLine("Enter to continue. C, E or Q to exit.")
-                .AppendLine()
+                .Append($"{Title}. Enter to continue. C, E or Q to exit.")
                 .ToString());
 
             return Console.ReadLine();
@@ -124,7 +123,7 @@ namespace AspNetMembershipPasswordReset {
             String username = ExtConsole
                 .Create()
                 .LabelWith("Username: ")
-                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+                .GetString(new SimpleStringValidator("Input Username you want to create"));
 
             String pwd = ExtConsole
                 .Create()
@@ -148,7 +147,7 @@ namespace AspNetMembershipPasswordReset {
                         SET NOCOUNT OFF
                     END")
                     .ToList()
-                    .ForEach(result => Console.WriteLine($"  - {result.Result}"));
+                    .ForEach(result => Console.WriteLine($"  > {result.Result}"));
             }
 
             String role = ExtConsole
@@ -280,7 +279,7 @@ namespace AspNetMembershipPasswordReset {
             String username = ExtConsole
                 .Create()
                 .LabelWith("Username: ")
-                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+                .GetString(new SimpleStringValidator("Input Username you want to delete"));
 
             SqlMembershipProvider provider = MembershipService.InitializeAndGetAspMembershipConfig(connString, appName, hashAlgo);
             provider.DeleteUser(username, true);
@@ -295,7 +294,7 @@ namespace AspNetMembershipPasswordReset {
             String username = ExtConsole
                 .Create()
                 .LabelWith("Username: ")
-                .GetString(new SimpleStringValidator("Input Username you want to reset"));
+                .GetString(new SimpleStringValidator("Input Username you want to view"));
 
             using (var db = new Database(connString, true)) {
                 IEnumerable<UserInfo> result = db.NQuery<UserInfo>(@"
@@ -400,22 +399,22 @@ namespace AspNetMembershipPasswordReset {
                     SET NOCOUNT OFF", new { App = appName, Username = username });
 
                 foreach (UserInfo user in result) {
-                    Console.WriteLine($"  - App: {user.App}");
-                    Console.WriteLine($"  - AppDesc: {user.AppDesc}");
-                    Console.WriteLine($"  - Username: {user.Username}");
-                    Console.WriteLine($"  - LastActivity: {user.LastActivity}");
-                    Console.WriteLine($"  - Email: {user.Email}");
-                    Console.WriteLine($"  - Approved: {user.Approved}");
-                    Console.WriteLine($"  - LockedOut: {user.LockedOut}");
-                    Console.WriteLine($"  - LastLogin: {user.LastLogin}");
-                    Console.WriteLine($"  - LastPwdChanged: {user.LastPwdChanged}");
-                    Console.WriteLine($"  - LastLockedOut: {user.LastLockedOut}");
-                    Console.WriteLine($"  - FailedLoginCount: {user.FailedLoginCount}");
-                    Console.WriteLine($"  - FailedPwdAnswerCount: {user.FailedPwdAnswerCount}");
-                    Console.WriteLine($"  - Role: {user.Role}");
-                    Console.WriteLine($"  - RoleDesc: {user.RoleDesc}");
-                    Console.WriteLine($"  - ProfileNames: {user.ProfileNames}");
-                    Console.WriteLine($"  - ProfileValues: {user.ProfileValues}");
+                    Console.WriteLine($"  > App: {user.App}");
+                    Console.WriteLine($"  > AppDesc: {user.AppDesc}");
+                    Console.WriteLine($"  > Username: {user.Username}");
+                    Console.WriteLine($"  > LastActivity: {user.LastActivity}");
+                    Console.WriteLine($"  > Email: {user.Email}");
+                    Console.WriteLine($"  > Approved: {user.Approved}");
+                    Console.WriteLine($"  > LockedOut: {user.LockedOut}");
+                    Console.WriteLine($"  > LastLogin: {user.LastLogin}");
+                    Console.WriteLine($"  > LastPwdChanged: {user.LastPwdChanged}");
+                    Console.WriteLine($"  > LastLockedOut: {user.LastLockedOut}");
+                    Console.WriteLine($"  > FailedLoginCount: {user.FailedLoginCount}");
+                    Console.WriteLine($"  > FailedPwdAnswerCount: {user.FailedPwdAnswerCount}");
+                    Console.WriteLine($"  > Role: {user.Role}");
+                    Console.WriteLine($"  > RoleDesc: {user.RoleDesc}");
+                    Console.WriteLine($"  > ProfileNames: {user.ProfileNames}");
+                    Console.WriteLine($"  > ProfileValues: {user.ProfileValues}");
                 }
             }
         }
@@ -450,7 +449,7 @@ namespace AspNetMembershipPasswordReset {
                     SET NOCOUNT OFF");
 
                 foreach (SimpleUserInfo user in result)
-                    Console.WriteLine($"  - App: {user.App}, Username: {user.Username}");
+                    Console.WriteLine($"  > App: {user.App}, Username: {user.Username}");
             }
         }
 

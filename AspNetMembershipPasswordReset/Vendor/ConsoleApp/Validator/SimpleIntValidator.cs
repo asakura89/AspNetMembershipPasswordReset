@@ -1,6 +1,6 @@
 using System;
 
-namespace AspNetMembershipPasswordReset.Validator {
+namespace ConsoleApp.Validator {
     public class SimpleIntValidator : IInputValidator {
         readonly Func<String, Boolean> stringValidator;
 

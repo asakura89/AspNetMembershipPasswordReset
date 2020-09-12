@@ -1,7 +1,7 @@
 using System;
-using AspNetMembershipPasswordReset.Validator;
+using ConsoleApp.Validator;
 
-namespace AspNetMembershipPasswordReset {
+namespace ConsoleApp {
     public class ExtConsole {
         ExtConsole() { }
 

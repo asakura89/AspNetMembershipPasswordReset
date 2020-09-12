@@ -1,7 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace AspNetMembershipPasswordReset.Validator {
+namespace ConsoleApp.Validator {
     public class SimpleEmailValidator : IInputValidator {
         public SimpleEmailValidator(String invalidMessage) {
             InvalidMessage = invalidMessage;

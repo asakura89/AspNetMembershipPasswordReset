@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using ConsoleApp.Validator;
 
 namespace AspNetMembershipPasswordReset.Validator {
     class ModeValidator : IInputValidator {
